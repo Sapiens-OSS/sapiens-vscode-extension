@@ -104,23 +104,8 @@ function enterPath(info: Partial<SapiensProjectInfo>) {
 	fileExplorer(
 		info.path ?? "/",
 		`This command is used to initialize a new Sapiens project. Please enter the root path where the directory of the project shall reside`,
-		(currentPath) => enterId({...info, path: currentPath})
+		(currentPath) => enterModPath({...info, path: currentPath})
 	)
-}
-
-function enterId(info: Partial<SapiensProjectInfo>) {
-	const input = vscode.window.createInputBox()
-
-	input.step = 1
-	input.title = "Enter the ID of your mod"
-	input.placeholder = "IDs should not contain any form of whitespace"
-	input.value = info.id ?? ""
-	input.show()
-
-	input.onDidAccept(() => {
-		input.hide()
-		enterModPath({...info, id: input.value})
-	})
 }
 
 function enterModPath(info: Partial<SapiensProjectInfo>) {
@@ -136,6 +121,13 @@ function enterModPath(info: Partial<SapiensProjectInfo>) {
 	)
 }
 
+function sanitizeName(name: string) {
+	const noWhiteSpace = name.replace(/\s/g, '-')
+	const sanitized = noWhiteSpace.replace(/[^a-zA-Z0-9+_\-]/g, '')
+	const toLower = sanitized.toLowerCase()
+	return toLower
+}
+
 function enterName(info: Partial<SapiensProjectInfo>) {
 	const input = vscode.window.createInputBox()
 
@@ -146,7 +138,7 @@ function enterName(info: Partial<SapiensProjectInfo>) {
 
 	input.onDidAccept(() => {
 		input.hide()
-		enterDescription({...info, MOD_NAME: input.value})
+		enterDescription({...info, MOD_NAME: input.value, id: sanitizeName(input.value)})
 	})
 }
 
@@ -220,6 +212,8 @@ function enterWebsite(info: Partial<SapiensProjectInfo>) {
 function enterConfirmation(info: SapiensProjectInfo) {
 	const input = vscode.window.createQuickPick()
 
+
+
 	input.step = 7
 	input.title = `Please confirm the following information:\n
 Setup of the project will be installed at ${info.path}/${info.id} (will write to this location).\n
@@ -234,7 +228,6 @@ Is this OK?`
 		
 		if(input.activeItems.length > 0) {
 			const activeItem = input.activeItems[0]
-			console.log(activeItem)
 
 			input.hide()
 			if(activeItem.label === "Yes") {
@@ -283,7 +276,7 @@ async function initializeProject(info: SapiensProjectInfo) {
 		const cmakeBuildBinary = process.platform === "linux" ? `x86_64-w64-mingw32-cmake` : `cmake`
 
 		const cdCommand = `cd ${directory}`
-		const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`
+		const cmakeBuild = `${cmakeBuildBinary} -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`
 		log.appendLine(`running ${cdCommand} && ${cmakeBuild}`)
 		const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(`${cdCommand} && ${cmakeBuild}`)
 		log.appendLine(cmakeOut)

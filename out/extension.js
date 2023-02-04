@@ -79,25 +79,19 @@ function fileExplorer(startPath, title, onNext, autoDetectLocations) {
     path.show();
 }
 function enterPath(info) {
-    fileExplorer(info.path ?? "/", `This command is used to initialize a new Sapiens project. Please enter the root path where the directory of the project shall reside`, (currentPath) => enterId({ ...info, path: currentPath }));
-}
-function enterId(info) {
-    const input = vscode.window.createInputBox();
-    input.step = 1;
-    input.title = "Enter the ID of your mod";
-    input.placeholder = "IDs should not contain any form of whitespace";
-    input.value = info.id ?? "";
-    input.show();
-    input.onDidAccept(() => {
-        input.hide();
-        enterModPath({ ...info, id: input.value });
-    });
+    fileExplorer(info.path ?? "/", `This command is used to initialize a new Sapiens project. Please enter the root path where the directory of the project shall reside`, (currentPath) => enterModPath({ ...info, path: currentPath }));
 }
 function enterModPath(info) {
     fileExplorer(info.modPath ?? `/`, `Enter the path to the mods folder in your Sapiens installation location`, (currentPath) => enterName({ ...info, modPath: currentPath }), async () => {
         const found = (await util.promisify(child_process_1.exec)(`find / -type d -name 'majicjungle' -print 2>/dev/null`));
         return found.stdout.split('\n').filter(f => f !== '');
     });
+}
+function sanitizeName(name) {
+    const noWhiteSpace = name.replace(/\s/g, '-');
+    const sanitized = noWhiteSpace.replace(/[^a-zA-Z0-9+_\-]/g, '');
+    const toLower = sanitized.toLowerCase();
+    return toLower;
 }
 function enterName(info) {
     const input = vscode.window.createInputBox();
@@ -107,7 +101,7 @@ function enterName(info) {
     input.show();
     input.onDidAccept(() => {
         input.hide();
-        enterDescription({ ...info, MOD_NAME: input.value });
+        enterDescription({ ...info, MOD_NAME: input.value, id: sanitizeName(input.value) });
     });
 }
 function enterDescription(info) {
@@ -175,7 +169,6 @@ Is this OK?`;
     input.onDidAccept(() => {
         if (input.activeItems.length > 0) {
             const activeItem = input.activeItems[0];
-            console.log(activeItem);
             input.hide();
             if (activeItem.label === "Yes") {
                 initializeProject(info);
@@ -212,7 +205,7 @@ async function initializeProject(info) {
         log.appendLine(`success`);
         const cmakeBuildBinary = process.platform === "linux" ? `x86_64-w64-mingw32-cmake` : `cmake`;
         const cdCommand = `cd ${directory}`;
-        const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`;
+        const cmakeBuild = `${cmakeBuildBinary} -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`;
         log.appendLine(`running ${cdCommand} && ${cmakeBuild}`);
         const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(`${cdCommand} && ${cmakeBuild}`);
         log.appendLine(cmakeOut);
