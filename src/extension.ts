@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises'
 import * as util from 'util'
 import { execSync, exec } from "child_process";
+import { stderr, stdout } from 'process';
 
 type SapiensProjectInfo = {
 	path: string,
@@ -255,11 +256,15 @@ async function initializeProject(info: SapiensProjectInfo) {
 		log.appendLine(`Initializing project with the following information: ${JSON.stringify(info, null, 2)}`)
 
 		log.appendLine(`cloning ${repo} to ${directory}`)
-		const result = await execPromise(`git clone -b copyInsteadOfSymlink --recurse-submodules ${repo} ${directory}`)
+		const { stdout: cloneOut, stderr: cloneErr } = await execPromise(`git clone -b copyInsteadOfSymlink --recurse-submodules ${repo} ${directory}`)
+		log.appendLine(cloneOut)
+		log.appendLine(cloneErr)
 		log.appendLine(`success`)
 
 		log.appendLine(`removing .git file`)
-		await execPromise(`rm -rf ${directory}/.git`)
+		const { stdout: rmOut, stderr: rmErr } = await execPromise(`rm -rf ${directory}/.git`)
+		log.appendLine(rmOut)
+		log.appendLine(rmErr)
 		log.appendLine(`success`)
 
 		log.appendLine(`reading modInfo.lua`)
@@ -277,9 +282,12 @@ async function initializeProject(info: SapiensProjectInfo) {
 
 		const cmakeBuildBinary = process.platform === "linux" ? `x86_64-w64-mingw32-cmake` : `cmake`
 
+		const cdCommand = `cd ${directory}`
 		const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`
-		log.appendLine(`running ${cmakeBuild}`)
-		await execPromise(cmakeBuild)
+		log.appendLine(`running ${cdCommand} && ${cmakeBuild}`)
+		const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(`${cdCommand} && ${cmakeBuild}`)
+		log.appendLine(cmakeOut)
+		log.appendLine(cmakeErr)
 		log.appendLine(`success`)
 
 		log.appendLine(`opening project in new window`)

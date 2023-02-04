@@ -190,10 +190,14 @@ async function initializeProject(info) {
     try {
         log.appendLine(`Initializing project with the following information: ${JSON.stringify(info, null, 2)}`);
         log.appendLine(`cloning ${repo} to ${directory}`);
-        const result = await execPromise(`git clone -b copyInsteadOfSymlink --recurse-submodules ${repo} ${directory}`);
+        const { stdout: cloneOut, stderr: cloneErr } = await execPromise(`git clone -b copyInsteadOfSymlink --recurse-submodules ${repo} ${directory}`);
+        log.appendLine(cloneOut);
+        log.appendLine(cloneErr);
         log.appendLine(`success`);
         log.appendLine(`removing .git file`);
-        await execPromise(`rm -rf ${directory}/.git`);
+        const { stdout: rmOut, stderr: rmErr } = await execPromise(`rm -rf ${directory}/.git`);
+        log.appendLine(rmOut);
+        log.appendLine(rmErr);
         log.appendLine(`success`);
         log.appendLine(`reading modInfo.lua`);
         const modInfo = (await fsPromises.readFile(`${directory}/modInfo.lua`)).toString()
@@ -207,9 +211,12 @@ async function initializeProject(info) {
         await fsPromises.writeFile(`${directory}/modInfo.lua`, modInfo);
         log.appendLine(`success`);
         const cmakeBuildBinary = process.platform === "linux" ? `x86_64-w64-mingw32-cmake` : `cmake`;
+        const cdCommand = `cd ${directory}`;
         const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`;
-        log.appendLine(`running ${cmakeBuild}`);
-        await execPromise(cmakeBuild);
+        log.appendLine(`running ${cdCommand} && ${cmakeBuild}`);
+        const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(`${cdCommand} && ${cmakeBuild}`);
+        log.appendLine(cmakeOut);
+        log.appendLine(cmakeErr);
         log.appendLine(`success`);
         log.appendLine(`opening project in new window`);
         await execPromise(`code ${directory}`);
