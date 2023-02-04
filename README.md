@@ -1,5 +1,5 @@
 # Sapiens VSCode Extension
-Sapiens Mod development for VSCode
+Sapiens Mod development extension for VSCode
 
 ## Usage
 1. Install the Sapiens Modding extension for VSCode in the VSCode marketplace
