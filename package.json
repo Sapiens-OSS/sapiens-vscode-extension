@@ -2,10 +2,12 @@
   "name": "sapiens-vscode-extension",
   "displayName": "sapiens-vscode-extension",
   "description": "Sapiens Mod development for VSCode",
+  "publisher": "Sapiens-OSS",
   "version": "1.0.0",
   "repository": {
     "url": "https://github.com/Sapiens-OSS/sapiens-vscode-extension"
   },
+  "icon": "logo_min.png",
   "engines": {
     "vscode": "^1.74.0"
   },
