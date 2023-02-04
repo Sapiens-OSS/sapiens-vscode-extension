@@ -1,6 +1,6 @@
 {
   "name": "sapiens-vscode-extension",
-  "displayName": "sapiens-vscode-extension",
+  "displayName": "Sapiens Modding VSCode Extension",
   "description": "Sapiens Mod development for VSCode",
   "publisher": "Sapiens-OSS",
   "version": "1.0.0",
