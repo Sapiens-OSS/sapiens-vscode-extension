@@ -7,7 +7,7 @@ const vscode = require("vscode");
 const fs = require("fs");
 const fsPromises = require("fs/promises");
 const util = require("util");
-const { execSync, exec } = require("child_process");
+const child_process_1 = require("child_process");
 const log = vscode.window.createOutputChannel("sapiens-vscode-extension-log");
 function fileExplorer(startPath, title, onNext, autoDetectLocations) {
     let currentPath = startPath === "/" ? [''] : startPath.split('/');
@@ -95,7 +95,7 @@ function enterId(info) {
 }
 function enterModPath(info) {
     fileExplorer(info.modPath ?? `/`, `Enter the path to the mods folder in your Sapiens installation location`, (currentPath) => enterName({ ...info, modPath: currentPath }), async () => {
-        const found = (await util.promisify(exec)(`find / -type d -name 'majicjungle' -print 2>/dev/null`));
+        const found = (await util.promisify(child_process_1.exec)(`find / -type d -name 'majicjungle' -print 2>/dev/null`));
         return found.stdout.split('\n').filter(f => f !== '');
     });
 }
@@ -186,7 +186,7 @@ Is this OK?`;
 async function initializeProject(info) {
     const repo = `https://github.com/nmattela/sapiens-cmake-template.git`;
     const directory = `${info.path}/${info.id}`;
-    const execPromise = util.promisify(exec);
+    const execPromise = util.promisify(child_process_1.exec);
     try {
         log.appendLine(`Initializing project with the following information: ${JSON.stringify(info, null, 2)}`);
         log.appendLine(`cloning ${repo} to ${directory}`);
@@ -207,7 +207,7 @@ async function initializeProject(info) {
         await fsPromises.writeFile(`${directory}/modInfo.lua`, modInfo);
         log.appendLine(`success`);
         const cmakeBuildBinary = process.platform === "linux" ? `x86_64-w64-mingw32-cmake` : `cmake`;
-        const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`;
+        const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`;
         log.appendLine(`running ${cmakeBuild}`);
         await execPromise(cmakeBuild);
         log.appendLine(`success`);
@@ -239,7 +239,6 @@ function activate(context) {
     const newProject = vscode.commands.registerCommand('sapiens-vscode-extension.newProject', () => {
         const sapiensProjectInfo = {
             path: process.env.HOME ?? "/",
-            modPath: `/mnt/LinuxHDD/SteamLibrary/steamapps/compatdata/1060230/pfx/drive_c/users/steamuser/AppData/Roaming/majicjungle/sapiens/mods`
         };
         enterPath(sapiensProjectInfo);
     });

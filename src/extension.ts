@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises'
 import * as util from 'util'
-const { execSync, exec } = require("child_process");
+import { execSync, exec } from "child_process";
 
 type SapiensProjectInfo = {
 	path: string,
@@ -277,7 +277,7 @@ async function initializeProject(info: SapiensProjectInfo) {
 
 		const cmakeBuildBinary = process.platform === "linux" ? `x86_64-w64-mingw32-cmake` : `cmake`
 
-		const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`
+		const cmakeBuild = `${cmakeBuildBinary} -DMOD_ID="${info.id}" -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`
 		log.appendLine(`running ${cmakeBuild}`)
 		await execPromise(cmakeBuild)
 		log.appendLine(`success`)
@@ -322,7 +322,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 		const sapiensProjectInfo: Partial<SapiensProjectInfo> = {
 			path: process.env.HOME ?? "/",
-			modPath: `/mnt/LinuxHDD/SteamLibrary/steamapps/compatdata/1060230/pfx/drive_c/users/steamuser/AppData/Roaming/majicjungle/sapiens/mods`
 		}
 
 		enterPath(sapiensProjectInfo)
