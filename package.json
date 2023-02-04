@@ -16,10 +16,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "sapiens-vscode-extension.helloWorld",
-        "title": "Hello World"
-      },
-      {
         "command": "sapiens-vscode-extension.newProject",
         "title": "Create a new Sapiens mod project"
       }
