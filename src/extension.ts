@@ -239,7 +239,7 @@ Is this OK?`
 
 async function initializeProject(info: SapiensProjectInfo) {
 
-	const repo = `https://github.com/nmattela/sapiens-cmake-template.git`
+	const repo = `https://github.com/Sapiens-OSS/sapiens-cmake-template.git`
 	const directory = `${info.path}/${info.id}`
 	
 	const execPromise = util.promisify(exec)
@@ -249,7 +249,7 @@ async function initializeProject(info: SapiensProjectInfo) {
 		log.appendLine(`Initializing project with the following information: ${JSON.stringify(info, null, 2)}`)
 
 		log.appendLine(`cloning ${repo} to ${directory}`)
-		const { stdout: cloneOut, stderr: cloneErr } = await execPromise(`git clone -b copyInsteadOfSymlink --recurse-submodules ${repo} ${directory}`)
+		const { stdout: cloneOut, stderr: cloneErr } = await execPromise(`git clone --recurse-submodules ${repo} ${directory}`)
 		log.appendLine(cloneOut)
 		log.appendLine(cloneErr)
 		log.appendLine(`success`)

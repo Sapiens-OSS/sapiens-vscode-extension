@@ -26,7 +26,7 @@ Sapiens Mod development extension for VSCode
 
 From thereon out, you can run
 ```
-cmake --build build/ --target run_game
+cmake --build build/ --target sync_mod_files --target run_game
 ```
 To run and build the game.
 
