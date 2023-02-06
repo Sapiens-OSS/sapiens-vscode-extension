@@ -7,6 +7,8 @@ import * as util from 'util'
 import { execSync, exec } from "child_process";
 import { openStdin, stderr, stdout } from 'process';
 
+const execPromise = util.promisify(exec)
+
 type SapiensProjectInfo = {
 	path: string,
 	id: string,
@@ -29,6 +31,8 @@ abstract class Platform {
 	abstract cmakeInit(path: string, modPath: string): string
 	abstract openVsCode(path: string): string
 	abstract chainCommands(...commands: Array<string>): string
+
+	abstract getRoots(): Array<string>
 
 	public static New() {
 		switch(process.platform) {
@@ -56,7 +60,10 @@ class LinuxPlatform extends Platform {
 	}
 
 	cmakeInit(path: string, modPath: string): string {
-		return `x86_64-w64-mingw32-cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${modPath}" ${path} -B build`
+		const strippedPath = path.endsWith(this.directorySeparator) ? path.slice(0, path.length-1) : path
+		const strippedModPath = modPath.endsWith(this.directorySeparator) ? modPath.slice(0, modPath.length-1) : modPath
+
+		return `x86_64-w64-mingw32-cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${strippedModPath}" ${strippedPath} -B build`
 	}
 
 	openVsCode(path: string): string {
@@ -65,6 +72,10 @@ class LinuxPlatform extends Platform {
 
 	chainCommands(...commands: string[]): string {
 		return commands.join(` && `)
+	}
+
+	getRoots(): string[] {
+		return [`/`]
 	}
 }
 
@@ -85,7 +96,10 @@ class WindowsPlatform extends Platform {
 	}
 
 	cmakeInit(path: string, modPath: string): string {
-		return `cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${modPath}" ${path} -B build`
+		const strippedPath = path.endsWith(this.directorySeparator) ? path.slice(0, path.length-1) : path
+		const strippedModPath = modPath.endsWith(this.directorySeparator) ? modPath.slice(0, modPath.length-1) : modPath
+
+		return `cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${strippedModPath}" ${strippedPath} -B build`
 	}
 
 	openVsCode(path: string): string {
@@ -95,15 +109,40 @@ class WindowsPlatform extends Platform {
 	chainCommands(...commands: string[]): string {
 		return commands.join(` && `)
 	}
+
+	getRoots(): string[] {
+		const response = execSync(`wmic logicaldisk get name`).toString()
+		return response
+			.split(`\r\r\n`)
+			.filter(value => /[A-Za-z]:/.test(value))
+            .map(value => value.trim())
+	}
 }
 
 
 const log = vscode.window.createOutputChannel("sapiens-vscode-extension-log");
 
 
-function fileExplorer(startPath: string, title: string, onNext: (path: string) => void, autoDetectLocations?: () => Promise<Array<string>>) {
-	let currentPath = startPath === "/" ? [''] : startPath.split('/')
-	const pathToString = () => currentPath.length > 1 ? currentPath.join('/') : "/"
+function fileExplorer(platform: Platform, title: string, onNext: (path: string) => void, autoDetectLocations?: () => Promise<Array<string>>) {
+
+	let roots = platform.getRoots()
+
+	let currentPath: Array<string> = []
+	const pathToString = () => {
+		if(currentPath.length > 0) {
+			if(currentPath[0] === "/") {
+				return `${currentPath.slice(1).join(platform.directorySeparator)}${platform.directorySeparator}`
+			} else {
+				if(currentPath.length > 1) {
+					return `${currentPath.join(platform.directorySeparator)}${platform.directorySeparator}`
+				} else {
+					return `${currentPath[0]}${platform.directorySeparator}`
+				}
+			}
+		} else {
+			return platform.directorySeparator
+		}
+	}
 
 	let autoDetectedLocations: Array<string> = []
 	autoDetectLocations
@@ -120,27 +159,37 @@ function fileExplorer(startPath: string, title: string, onNext: (path: string) =
 			})
 		: null
 
-	const readContents = () => fs.readdirSync(pathToString(), { withFileTypes: true })
-		.filter(d => d.isDirectory())
-		.map(d => d.name)
-	let contentOnPath = readContents()
-	const pathItems = () => {
+	const readContents = () => {
+		if(currentPath.length > 0) {
+			return fs.readdirSync(pathToString(), { withFileTypes: true })
+				.filter(d => d.isDirectory())
+				.map(d => d.name)
+		} else {
+			return roots
+		}
+	}
 
+	let contentOnPath = readContents()
+
+	const pathItems = () => {
 		const autoDetectContent = autoDetectLocations !== undefined && autoDetectedLocations.length === 0
 				? [{ label: 'Auto-detecing locations. Please wait... (can take up to 5 minutes)', description: `In the meantime, you can manually search for the location` }]
 				: autoDetectedLocations.map(a => ({ label: a }))
 
-		return [
+		const autoDetectLabels = [
 			{ label: 'Auto-detected locations', kind: vscode.QuickPickItemKind.Separator },
 			...autoDetectContent,
 			{ label: 'Search location manually', kind: vscode.QuickPickItemKind.Separator },
+		]
+
+		return [
+			...autoDetectLabels,
 			{ label: '.', description: 'select this directory' },
 			{ label: '..', description: 'go back' },
 			...contentOnPath.map(c => ({ label: c }))
-		] as Array<any>;
+		] as Array<any>
+
 	}
-
-
 	
 	const path = vscode.window.createQuickPick()
 	path.title = title
@@ -159,8 +208,9 @@ function fileExplorer(startPath: string, title: string, onNext: (path: string) =
 				path.placeholder = pathToString()
 				path.items = pathItems()
 			} else {
+				console.log(selectedItem.label)
 				if(selectedItem.label.startsWith("/")) {
-					currentPath = selectedItem.label === "/" ? [''] : selectedItem.label.split('/')
+					currentPath = selectedItem.label === "/" ? ['/'] : selectedItem.label.split(platform.directorySeparator)
 				} else {
 					currentPath = [...currentPath, selectedItem.label]
 				}
@@ -170,7 +220,18 @@ function fileExplorer(startPath: string, title: string, onNext: (path: string) =
 				path.placeholder = pathToString()
 				path.items = pathItems()
 			}
+		} else {
+			console.log(path.value)
+			if(path.value.startsWith("/")) {
+				currentPath = path.value === "/" ? ['/'] : path.value.split(platform.directorySeparator)
+			} else {
+				currentPath = [...currentPath, path.value]
+			}
+			contentOnPath = readContents()
 
+			path.value = ""
+			path.placeholder = pathToString()
+			path.items = pathItems()
 		}
 	})
 	path.step = 0
@@ -180,7 +241,7 @@ function fileExplorer(startPath: string, title: string, onNext: (path: string) =
 
 function enterPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 	fileExplorer(
-		info.path ?? "/",
+		platform,
 		`This command is used to initialize a new Sapiens project. Please enter the root path where the directory of the project shall reside`,
 		(currentPath) => enterModPath({...info, path: currentPath}, platform)
 	)
@@ -189,7 +250,7 @@ function enterPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 function enterModPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 
 	fileExplorer(
-		info.modPath ?? `/`,
+		platform,
 		`Enter the path to the mods folder in your Sapiens installation location`,
 		(currentPath) => enterName({...info, modPath: currentPath}, platform),
 		async () => {
@@ -294,7 +355,7 @@ function enterConfirmation(info: SapiensProjectInfo, platform: Platform) {
 
 	input.step = 7
 	input.title = `Please confirm the following information:\n
-Setup of the project will be installed at ${info.path}/${info.id} (will write to this location).\n
+Setup of the project will be installed at ${info.path}${info.id} (will write to this location).\n
 Your Sapiens installation's mods folder is located at ${info.modPath} (will write to this location).\n
 Mod name, description, etc. will be writted to modInfo.lua, where you can change their values any time you want.\n
 Is this OK?`
@@ -318,9 +379,7 @@ Is this OK?`
 async function initializeProject(info: SapiensProjectInfo, platform: Platform) {
 
 	const repo = `https://github.com/Sapiens-OSS/sapiens-cmake-template.git`
-	const directory = `${info.path}/${info.id}`
-	
-	const execPromise = util.promisify(exec)
+	const directory = `${info.path}${info.id}`
 	
 	try {
 
@@ -333,7 +392,7 @@ async function initializeProject(info: SapiensProjectInfo, platform: Platform) {
 		log.appendLine(`success`)
 
 		log.appendLine(`removing .git file`)
-		const { stdout: rmOut, stderr: rmErr } = await execPromise(platform.removeDir(`${directory}/.git`))
+		const { stdout: rmOut, stderr: rmErr } = await execPromise(platform.removeDir(`${directory}${platform.directorySeparator}.git`))
 		log.appendLine(rmOut)
 		log.appendLine(rmErr)
 		log.appendLine(`success`)
@@ -360,7 +419,9 @@ async function initializeProject(info: SapiensProjectInfo, platform: Platform) {
 		log.appendLine(`success`)
 
 		log.appendLine(`opening project in new window`)
-		await execPromise(platform.openVsCode(directory))
+		const { stdout: codeOut, stderr: codeErr } = await execPromise(platform.chainCommands(cdCommand, platform.openVsCode(".")))
+		log.appendLine(codeOut)
+		log.appendLine(codeErr)
 		log.appendLine(`success`)
 
 		log.appendLine(`your project was opened in a new VSCode window`)
