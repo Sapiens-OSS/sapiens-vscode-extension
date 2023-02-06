@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises'
 import * as util from 'util'
 import { execSync, exec } from "child_process";
-import { stderr, stdout } from 'process';
+import { openStdin, stderr, stdout } from 'process';
 
 type SapiensProjectInfo = {
 	path: string,
@@ -18,6 +18,84 @@ type SapiensProjectInfo = {
 	MOD_TYPE: "world" | "app"
 }
 
+
+abstract class Platform {
+	
+	abstract directorySeparator: string
+
+	abstract cloneRepo(path: string, repoUrl: string): string
+	abstract removeDir(path: string): string
+	abstract changeDir(path: string): string
+	abstract cmakeInit(path: string, modPath: string): string
+	abstract openVsCode(path: string): string
+	abstract chainCommands(...commands: Array<string>): string
+
+	public static New() {
+		switch(process.platform) {
+			case "win32": return new WindowsPlatform()
+			case "linux": return new LinuxPlatform()
+			default: {throw new Error(`Unsupported platform: ${process.platform}`)}
+		}
+	}
+}
+
+class LinuxPlatform extends Platform {
+
+	directorySeparator: string = "/"
+
+	cloneRepo(path: string, repoUrl: string): string {
+		return `git clone --recurse-submodules ${repoUrl} ${path}`
+	}
+
+	removeDir(path: string): string {
+		return `rm -rf ${path}`
+	}
+
+	changeDir(path: string): string {
+		return `cd ${path}`
+	}
+
+	cmakeInit(path: string, modPath: string): string {
+		return `x86_64-w64-mingw32-cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${modPath}" ${path} -B build`
+	}
+
+	openVsCode(path: string): string {
+		return `code ${path}`
+	}
+
+	chainCommands(...commands: string[]): string {
+		return commands.join(` && `)
+	}
+}
+
+class WindowsPlatform extends Platform {
+
+	directorySeparator: string = "\\"
+
+	cloneRepo(path: string, repoUrl: string): string {
+		return `git clone --recurse-submodules ${repoUrl} ${path}`
+	}
+
+	removeDir(path: string): string {
+		return `rmdir /Q /S ${path}`
+	}
+
+	changeDir(path: string): string {
+		return `cd ${path}`
+	}
+
+	cmakeInit(path: string, modPath: string): string {
+		return `cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${modPath}" ${path} -B build`
+	}
+
+	openVsCode(path: string): string {
+		return `code ${path}`
+	}
+
+	chainCommands(...commands: string[]): string {
+		return commands.join(` && `)
+	}
+}
 
 
 const log = vscode.window.createOutputChannel("sapiens-vscode-extension-log");
@@ -100,20 +178,20 @@ function fileExplorer(startPath: string, title: string, onNext: (path: string) =
 	path.show()
 }
 
-function enterPath(info: Partial<SapiensProjectInfo>) {
+function enterPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 	fileExplorer(
 		info.path ?? "/",
 		`This command is used to initialize a new Sapiens project. Please enter the root path where the directory of the project shall reside`,
-		(currentPath) => enterModPath({...info, path: currentPath})
+		(currentPath) => enterModPath({...info, path: currentPath}, platform)
 	)
 }
 
-function enterModPath(info: Partial<SapiensProjectInfo>) {
+function enterModPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 
 	fileExplorer(
 		info.modPath ?? `/`,
 		`Enter the path to the mods folder in your Sapiens installation location`,
-		(currentPath) => enterName({...info, modPath: currentPath}),
+		(currentPath) => enterName({...info, modPath: currentPath}, platform),
 		async () => {
 			const found = (await util.promisify(exec)(`find / -type d -name 'majicjungle' -print 2>/dev/null`))
 			return (found.stdout as string).split('\n').filter(f => f !== '')
@@ -128,7 +206,7 @@ function sanitizeName(name: string) {
 	return toLower
 }
 
-function enterName(info: Partial<SapiensProjectInfo>) {
+function enterName(info: Partial<SapiensProjectInfo>, platform: Platform) {
 	const input = vscode.window.createInputBox()
 
 	input.step = 2
@@ -138,11 +216,11 @@ function enterName(info: Partial<SapiensProjectInfo>) {
 
 	input.onDidAccept(() => {
 		input.hide()
-		enterDescription({...info, MOD_NAME: input.value, id: sanitizeName(input.value)})
+		enterDescription({...info, MOD_NAME: input.value, id: sanitizeName(input.value)}, platform)
 	})
 }
 
-function enterDescription(info: Partial<SapiensProjectInfo>) {
+function enterDescription(info: Partial<SapiensProjectInfo>, platform: Platform) {
 	const input = vscode.window.createInputBox()
 
 	input.step = 3
@@ -152,11 +230,11 @@ function enterDescription(info: Partial<SapiensProjectInfo>) {
 
 	input.onDidAccept(() => {
 		input.hide()
-		enterModType({...info, MOD_DESCRIPTION: input.value})
+		enterModType({...info, MOD_DESCRIPTION: input.value}, platform)
 	})
 }
 
-function enterModType(info: Partial<SapiensProjectInfo>) {
+function enterModType(info: Partial<SapiensProjectInfo>, platform: Platform) {
 	const pick = vscode.window.createQuickPick()
 
 	pick.step = 4
@@ -175,13 +253,13 @@ function enterModType(info: Partial<SapiensProjectInfo>) {
 			const activeItem = pick.activeItems[0]
 
 			pick.hide()
-			enterDeveloper({...info, MOD_TYPE: activeItem.label as "world" | "app"})
+			enterDeveloper({...info, MOD_TYPE: activeItem.label as "world" | "app"}, platform)
 		}
 
 	})
 }
 
-function enterDeveloper(info: Partial<SapiensProjectInfo>) {
+function enterDeveloper(info: Partial<SapiensProjectInfo>, platform: Platform) {
 	const input = vscode.window.createInputBox()
 
 	input.step = 5
@@ -191,11 +269,11 @@ function enterDeveloper(info: Partial<SapiensProjectInfo>) {
 
 	input.onDidAccept(() => {
 		input.hide()
-		enterWebsite({...info, MOD_DEVELOPER: input.value})
+		enterWebsite({...info, MOD_DEVELOPER: input.value}, platform)
 	})
 }
 
-function enterWebsite(info: Partial<SapiensProjectInfo>) {
+function enterWebsite(info: Partial<SapiensProjectInfo>, platform: Platform) {
 	const input = vscode.window.createInputBox()
 
 	input.step = 6
@@ -205,11 +283,11 @@ function enterWebsite(info: Partial<SapiensProjectInfo>) {
 
 	input.onDidAccept(() => {
 		input.hide()
-		enterConfirmation({...info, MOD_WEBSITE: input.value} as SapiensProjectInfo)
+		enterConfirmation({...info, MOD_WEBSITE: input.value} as SapiensProjectInfo, platform)
 	})
 }
 
-function enterConfirmation(info: SapiensProjectInfo) {
+function enterConfirmation(info: SapiensProjectInfo, platform: Platform) {
 	const input = vscode.window.createQuickPick()
 
 
@@ -231,13 +309,13 @@ Is this OK?`
 
 			input.hide()
 			if(activeItem.label === "Yes") {
-				initializeProject(info)
+				initializeProject(info, platform)
 			}
 		}
 	})
 }
 
-async function initializeProject(info: SapiensProjectInfo) {
+async function initializeProject(info: SapiensProjectInfo, platform: Platform) {
 
 	const repo = `https://github.com/Sapiens-OSS/sapiens-cmake-template.git`
 	const directory = `${info.path}/${info.id}`
@@ -249,13 +327,13 @@ async function initializeProject(info: SapiensProjectInfo) {
 		log.appendLine(`Initializing project with the following information: ${JSON.stringify(info, null, 2)}`)
 
 		log.appendLine(`cloning ${repo} to ${directory}`)
-		const { stdout: cloneOut, stderr: cloneErr } = await execPromise(`git clone --recurse-submodules ${repo} ${directory}`)
+		const { stdout: cloneOut, stderr: cloneErr } = await execPromise(platform.cloneRepo(directory, repo))
 		log.appendLine(cloneOut)
 		log.appendLine(cloneErr)
 		log.appendLine(`success`)
 
 		log.appendLine(`removing .git file`)
-		const { stdout: rmOut, stderr: rmErr } = await execPromise(`rm -rf ${directory}/.git`)
+		const { stdout: rmOut, stderr: rmErr } = await execPromise(platform.removeDir(`${directory}/.git`))
 		log.appendLine(rmOut)
 		log.appendLine(rmErr)
 		log.appendLine(`success`)
@@ -273,18 +351,16 @@ async function initializeProject(info: SapiensProjectInfo) {
 		await fsPromises.writeFile(`${directory}/modInfo.lua`, modInfo)
 		log.appendLine(`success`)
 
-		const cmakeBuildBinary = process.platform === "linux" ? `x86_64-w64-mingw32-cmake` : `cmake`
-
-		const cdCommand = `cd ${directory}`
-		const cmakeBuild = `${cmakeBuildBinary} -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${info.modPath}" ${directory} -B build`
-		log.appendLine(`running ${cdCommand} && ${cmakeBuild}`)
-		const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(`${cdCommand} && ${cmakeBuild}`)
+		const cdCommand = platform.changeDir(directory)
+		const cmakeBuild = platform.cmakeInit(directory, info.modPath)
+		log.appendLine(`running ${platform.chainCommands(cdCommand, cmakeBuild)}`)
+		const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(platform.chainCommands(cdCommand, cmakeBuild))
 		log.appendLine(cmakeOut)
 		log.appendLine(cmakeErr)
 		log.appendLine(`success`)
 
 		log.appendLine(`opening project in new window`)
-		await execPromise(`code ${directory}`)
+		await execPromise(platform.openVsCode(directory))
 		log.appendLine(`success`)
 
 		log.appendLine(`your project was opened in a new VSCode window`)
@@ -310,7 +386,9 @@ export function activate(context: vscode.ExtensionContext) {
 			path: process.env.HOME ?? "/",
 		}
 
-		enterPath(sapiensProjectInfo)
+		const commands = Platform.New()
+
+		enterPath(sapiensProjectInfo, commands)
 	})
 
 	context.subscriptions.push(newProject)
