@@ -131,7 +131,7 @@ function fileExplorer(platform: Platform, title: string, onNext: (path: string) 
 	const pathToString = () => {
 		if(currentPath.length > 0) {
 			if(currentPath[0] === "/") {
-				return `${currentPath.slice(1).join(platform.directorySeparator)}${platform.directorySeparator}`
+				return `${currentPath[0]}${currentPath.slice(1).join(platform.directorySeparator)}${platform.directorySeparator}`
 			} else {
 				if(currentPath.length > 1) {
 					return `${currentPath.join(platform.directorySeparator)}${platform.directorySeparator}`
@@ -153,7 +153,6 @@ function fileExplorer(platform: Platform, title: string, onNext: (path: string) 
 			})
 			.catch(err => {
 				log.appendLine(err)
-				console.log(err)
 				autoDetectedLocations = [`Error autodetecting locations: ${err}`]
 				path.items = pathItems()
 			})
