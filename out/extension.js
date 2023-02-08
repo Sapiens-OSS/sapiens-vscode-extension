@@ -325,10 +325,11 @@ async function initializeProject(info, platform) {
         log.appendLine(cmakeErr);
         log.appendLine(`success`);
         log.appendLine(`opening project in new window`);
-        const { stdout: codeOut, stderr: codeErr } = await execPromise(platform.chainCommands(cdCommand, platform.openVsCode(".")));
-        log.appendLine(codeOut);
-        log.appendLine(codeErr);
-        log.appendLine(`success`);
+        // const { stdout: codeOut, stderr: codeErr } = await execPromise(platform.chainCommands(cdCommand, platform.openVsCode(".")))
+        // log.appendLine(codeOut)
+        // log.appendLine(codeErr)
+        // log.appendLine(`success`)
+        const success = await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(directory));
         log.appendLine(`your project was opened in a new VSCode window`);
     }
     catch (e) {

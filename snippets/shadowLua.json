@@ -1,0 +1,8 @@
+{
+	"Shadow Lua": {
+		"prefix": ["shadow-lua"],
+		"body": "local mod = {\n\tloadOrder = 1\n}\n\nfunction mod:onload($TM_FILENAME_BASE)\n\t$0\nend\n\nreturn mod",
+		"description": "Boilerplate to create a Lua shadow",
+		"isFileTemplate": true
+	}
+}

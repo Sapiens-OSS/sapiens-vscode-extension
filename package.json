@@ -3,7 +3,7 @@
   "displayName": "Sapiens Modding VSCode Extension",
   "description": "Sapiens Mod development for VSCode",
   "publisher": "Sapiens-OSS",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "repository": {
     "url": "https://github.com/Sapiens-OSS/sapiens-vscode-extension"
   },
@@ -23,6 +23,92 @@
       {
         "command": "sapiens-vscode-extension.newProject",
         "title": "Create a new Sapiens mod project"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "lua",
+        "path": "./snippets/shadowLua.json"
+      }
+    ],
+    "configurationDefaults": {
+      "Lua.diagnostics.globals": [
+        "mj",
+        "mjNoise",
+        "LuaEnvironment",
+        "mj",
+        "mjrequire",
+        "Database",
+        "MJCache",
+        "fileUtils",
+        "MeshTypeUndefined",
+        "MeshTypeTerrain",
+        "MeshTypeGameObject",
+        "RENDER_TYPE_NONE",
+        "RENDER_TYPE_STATIC",
+        "RENDER_TYPE_STATIC_TRANSPARENT_BUILD",
+        "RENDER_TYPE_DYNAMIC",
+        "GameStateMainMenu",
+        "GameStateLoading",
+        "GameStateLoadedRunning",
+        "View",
+        "ColorView",
+        "ImageView",
+        "TextView",
+        "GameObjectView",
+        "ModelView",
+        "ModelTextView",
+        "ModelImageView",
+        "GlobeView",
+        "RenderTargetView",
+        "LinesView",
+        "TerrainMapView",
+        "Font",
+        "ViewPosition",
+        "MJPositionCenter",
+        "MJPositionInnerLeft",
+        "MJPositionInnerRight",
+        "MJPositionOuterLeft",
+        "MJPositionOuterRight",
+        "MJPositionBottom",
+        "MJPositionTop",
+        "MJPositionAbove",
+        "MJPositionBelow",
+        "MJHorizontalAlignmentLeft",
+        "MJHorizontalAlignmentCenter",
+        "MJHorizontalAlignmentRight",
+        "logPlayer",
+        "setSunrise",
+        "setSunset",
+        "printType",
+        "tp",
+        "logDebug",
+        "spawn",
+        "setDebugObject",
+        "completeCheat",
+        "debugLog"
+      ]
+    },
+    "debuggers": [
+      {
+        "type": "sapiens-debug",
+        "label": "Build and launch Sapiens mod",
+        "initialConfigurations": [
+          {
+            "name": "sapiens-debug",
+            "cwd": "${workspaceFolder}",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetDirectory}",
+            "args": [
+              "--build build/",
+              "--target sync_mod_files",
+              "--target run_game"
+            ]
+          }
+        ],
+        "languages": ["lua", "c"]
+
       }
     ]
   },
