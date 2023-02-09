@@ -3,7 +3,7 @@
   "displayName": "Sapiens Modding VSCode Extension",
   "description": "Sapiens Mod development for VSCode",
   "publisher": "Sapiens-OSS",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "repository": {
     "url": "https://github.com/Sapiens-OSS/sapiens-vscode-extension"
   },
@@ -15,7 +15,6 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:sapiens-vscode-extension.helloWorld"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -23,6 +22,18 @@
       {
         "command": "sapiens-vscode-extension.newProject",
         "title": "Create a new Sapiens mod project"
+      },
+      {
+        "command": "sapiens-vscode-extension.openSourceFile",
+        "title": "Open the source file of the currently opened Lua shadow"
+      },
+      {
+        "command": "sapiens-vscode-extension.recreateBuildFolder",
+        "title": "Recreate Sapiens mod build folder"
+      },
+      {
+        "command": "sapiens-vscode-extension.buildAndRun",
+        "title": "Build and run Sapiens mod"
       }
     ],
     "snippets": [
@@ -31,6 +42,19 @@
         "path": "./snippets/shadowLua.json"
       }
     ],
+    "configuration": {
+      "title": "Sapiens Mod Development",
+      "properties": {
+        "sapiens-vscode-extension.modPath": {
+          "type": "string",
+          "description": "Path to your Sapiens installation's mods folder"
+        },
+        "sapiens-vscode-extension.gameResourcesPath": {
+          "type": "string",
+          "descriptions": "Path to your Sapiens installation's gameResources folder"
+        }
+      }
+    },
     "configurationDefaults": {
       "Lua.diagnostics.globals": [
         "mj",
@@ -109,6 +133,20 @@
         ],
         "languages": ["lua", "c"]
 
+      }
+    ],
+    "keybindings":[
+      {
+        "command": "sapiens-vscode-extension.openSourceFile",
+        "key": "f4"
+      },
+      {
+        "command": "sapiens-vscode-extension.buildAndRun",
+        "key": "f6"
+      },
+      {
+        "command": "sapiens-vscode-extension.recreateBuildFolder",
+        "key": "f7"
       }
     ]
   },

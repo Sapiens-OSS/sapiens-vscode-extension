@@ -29,10 +29,13 @@ abstract class Platform {
 	abstract removeDir(path: string): string
 	abstract changeDir(path: string): string
 	abstract cmakeInit(path: string, modPath: string): string
+	abstract cmakeBuild(): string
 	abstract openVsCode(path: string): string
 	abstract chainCommands(...commands: Array<string>): string
 
 	abstract getRoots(): Array<string>
+
+	abstract toPathArray(path: string): Array<string>
 
 	public static New() {
 		switch(process.platform) {
@@ -66,6 +69,10 @@ class LinuxPlatform extends Platform {
 		return `x86_64-w64-mingw32-cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${strippedModPath}" ${strippedPath} -B build`
 	}
 
+	cmakeBuild(): string {
+		return `cmake --build build/ --target sync_mod_files --target run_game`
+	}
+
 	openVsCode(path: string): string {
 		return `code ${path}`
 	}
@@ -76,6 +83,18 @@ class LinuxPlatform extends Platform {
 
 	getRoots(): string[] {
 		return [`/`]
+	}
+
+	toPathArray(path: string): string[] {
+		if(path.startsWith("/")) {
+			if(path === "/") {
+				return ["/"]
+			} else {
+				return ["/", ...path.slice(1).split("/")]
+			}
+		} else {
+			return path.split("/")
+		}
 	}
 }
 
@@ -102,6 +121,10 @@ class WindowsPlatform extends Platform {
 		return `cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${strippedModPath}" ${strippedPath} -B build`
 	}
 
+	cmakeBuild(): string {
+		return `cmake --build build/ --target sync_mod_files --target run_game`
+	}
+
 	openVsCode(path: string): string {
 		return `code ${path}`
 	}
@@ -117,21 +140,29 @@ class WindowsPlatform extends Platform {
 			.filter(value => /[A-Za-z]:/.test(value))
             .map(value => value.trim())
 	}
+	
+	toPathArray(path: string): string[] {
+		return path.split("\\")
+	}
 }
 
 
 const log = vscode.window.createOutputChannel("sapiens-vscode-extension-log");
 
 
-function fileExplorer(platform: Platform, title: string, onNext: (path: string) => void, autoDetectLocations?: () => Promise<Array<string>>) {
+function fileExplorer(platform: Platform, initial: Array<string>, title: string, onNext: (path: string) => void, autoDetectLocations?: () => Promise<Array<string>>) {
 
 	let roots = platform.getRoots()
 
-	let currentPath: Array<string> = []
+	let currentPath: Array<string> = initial
 	const pathToString = () => {
 		if(currentPath.length > 0) {
 			if(currentPath[0] === "/") {
-				return `${currentPath[0]}${currentPath.slice(1).join(platform.directorySeparator)}${platform.directorySeparator}`
+				if(currentPath.length === 1) {
+					return `${currentPath[0]}`
+				} else {
+					return `${currentPath[0]}${currentPath.slice(1).join(platform.directorySeparator)}${platform.directorySeparator}`
+				}
 			} else {
 				if(currentPath.length > 1) {
 					return `${currentPath.join(platform.directorySeparator)}${platform.directorySeparator}`
@@ -140,7 +171,7 @@ function fileExplorer(platform: Platform, title: string, onNext: (path: string) 
 				}
 			}
 		} else {
-			return platform.directorySeparator
+			return ""
 		}
 	}
 
@@ -239,8 +270,12 @@ function fileExplorer(platform: Platform, title: string, onNext: (path: string) 
 }
 
 function enterPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
+
+	const pathArray = info.path !== undefined ? platform.toPathArray(info.path) : []
+
 	fileExplorer(
 		platform,
+		pathArray,
 		`This command is used to initialize a new Sapiens project. Please enter the root path where the directory of the project shall reside`,
 		(currentPath) => enterModPath({...info, path: currentPath}, platform)
 	)
@@ -248,15 +283,22 @@ function enterPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 
 function enterModPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 
-	fileExplorer(
-		platform,
-		`Enter the path to the mods folder in your Sapiens installation location`,
-		(currentPath) => enterName({...info, modPath: currentPath}, platform),
-		async () => {
-			const found = (await util.promisify(exec)(`find / -type d -name 'majicjungle' -print 2>/dev/null`))
-			return (found.stdout as string).split('\n').filter(f => f !== '')
-		}
-	)
+	const modPathExists = info.modPath !== undefined && info.modPath !== ""
+
+	if(modPathExists) {
+		enterName({...info}, platform)
+	} else {
+		fileExplorer(
+			platform,
+			[],
+			`Enter the path to the mods folder in your Sapiens installation location (to make this permanent, look for 'modPath' in settings)`,
+			(currentPath) => enterName({...info, modPath: currentPath}, platform),
+			async () => {
+				const found = (await util.promisify(exec)(`find / -type d -name 'majicjungle' -print 2>/dev/null`))
+				return (found.stdout as string).split('\n').filter(f => f !== '')
+			}
+		)
+	}
 }
 
 function sanitizeName(name: string) {
@@ -443,16 +485,143 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const newProject = vscode.commands.registerCommand('sapiens-vscode-extension.newProject', () => {
 
+		const sapiensConfig = vscode.workspace.getConfiguration("sapiens-vscode-extension")
+		const modPath = sapiensConfig.get<string>("modPath")
+
+		const platform = Platform.New()
+
 		const sapiensProjectInfo: Partial<SapiensProjectInfo> = {
-			path: process.env.HOME ?? "/",
+			path: process.env.HOME ?? undefined,
+			modPath: modPath !== "" ? modPath : undefined
 		}
 
-		const commands = Platform.New()
 
-		enterPath(sapiensProjectInfo, commands)
+		enterPath(sapiensProjectInfo, platform)
 	})
 
 	context.subscriptions.push(newProject)
+
+	const openSourceFile = vscode.commands.registerCommand('sapiens-vscode-extension.openSourceFile', async () => {
+
+		const sapiensConfig = vscode.workspace.getConfiguration("sapiens-vscode-extension")
+		const gameResourcesPath = sapiensConfig.get<string>("gameResourcesPath")
+
+		if(gameResourcesPath === undefined || gameResourcesPath === "") {
+			vscode.window.showErrorMessage(`sapiens-vscode-extension.gameResourcesPath not specified in settings`)
+			return
+		}
+
+		const textEditor = vscode.window.activeTextEditor
+
+		if(textEditor === undefined) {
+			vscode.window.showErrorMessage(`no file is currently opened`)
+			return
+		}
+
+		const fileUri = textEditor.document.uri
+		const workspaceFolders = vscode.workspace.workspaceFolders
+
+		if(workspaceFolders === undefined || workspaceFolders.length <= 0) {
+			vscode.window.showErrorMessage("workspace folder not foun")
+			return
+		}
+
+		const workspaceFolder = workspaceFolders[0]
+		const projectRoot = workspaceFolder.uri.fsPath
+		const filePath = fileUri.fsPath
+
+		const relativePath = filePath.slice(projectRoot.length)
+
+		const pathInGameResources = `${gameResourcesPath}${relativePath}`
+
+		const pathInGameResourcesExists = fs.existsSync(pathInGameResources)
+
+		if(!pathInGameResourcesExists) {
+			vscode.window.showErrorMessage(`file ${relativePath} does not exist in game resources (located at ${gameResourcesPath})`)
+			return
+		}
+
+		const openedGameResourcesFile = await vscode.workspace.openTextDocument(vscode.Uri.file(pathInGameResources))
+		vscode.window.showTextDocument(openedGameResourcesFile, {
+			viewColumn: vscode.ViewColumn.Beside
+		})
+
+
+	})
+
+	context.subscriptions.push(openSourceFile)
+
+	const recreateBuildFolder = vscode.commands.registerCommand('sapiens-vscode-extension.recreateBuildFolder', async () => {
+
+		const sapiensConfig = vscode.workspace.getConfiguration("sapiens-vscode-extension")
+		const modPath = sapiensConfig.get<string>("modPath")
+
+		const platform = Platform.New()
+
+		if(modPath === undefined || modPath === "") {
+			vscode.window.showErrorMessage(`sapiens-vscode-extension.modPath not specified in settings`)
+			return
+		}
+
+		const workspaceFolders = vscode.workspace.workspaceFolders
+
+		if(workspaceFolders === undefined || workspaceFolders.length <= 0) {
+			vscode.window.showErrorMessage("workspace folder not foun")
+			return
+		}
+
+		const workspaceFolder = workspaceFolders[0]
+		const projectRoot = workspaceFolder.uri.fsPath
+
+		const cmakeInit = platform.cmakeInit(projectRoot, modPath)
+
+		try {
+			log.appendLine(`running ${cmakeInit}`)
+			const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(cmakeInit)
+			log.appendLine(cmakeOut)
+			log.appendLine(cmakeErr)
+			log.appendLine(`success`)
+
+			vscode.window.showInformationMessage(`recreating build folder successful`)
+		} catch(e) {
+			vscode.window.showErrorMessage((e as any).toString())
+		}
+
+	})
+
+	context.subscriptions.push(recreateBuildFolder)
+
+	const buildAndRun = vscode.commands.registerCommand('sapiens-vscode-extension.buildAndRun', async () => {
+
+		const platform = Platform.New()
+		const cmakeBuild = platform.cmakeBuild()
+
+		const workspaceFolders = vscode.workspace.workspaceFolders
+
+		if(workspaceFolders === undefined || workspaceFolders.length <= 0) {
+			vscode.window.showErrorMessage("workspace folder not foun")
+			return
+		}
+
+		const workspaceFolder = workspaceFolders[0]
+		const projectRoot = workspaceFolder.uri.fsPath
+
+		const fullCommand = platform.chainCommands(platform.changeDir(projectRoot), cmakeBuild)
+
+		try {
+			log.appendLine(`running ${fullCommand}`)
+			const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(fullCommand)
+			log.appendLine(cmakeOut)
+			log.appendLine(cmakeErr)
+			log.appendLine(`success`)
+
+			vscode.window.showInformationMessage(`game is launching`)
+		} catch(e) {
+			vscode.window.showErrorMessage((e as any).toString())
+		}
+	})
+
+	context.subscriptions.push(buildAndRun)
 }
 
 // This method is called when your extension is deactivated
