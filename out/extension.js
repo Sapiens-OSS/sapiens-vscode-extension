@@ -352,9 +352,10 @@ async function initializeProject(info, platform) {
         await fsPromises.writeFile(`${directory}/modInfo.lua`, modInfo);
         log.appendLine(`success`);
         const cdCommand = platform.changeDir(directory);
-        const cmakeBuild = platform.cmakeInit(directory, info.modPath);
-        log.appendLine(`running ${platform.chainCommands(cdCommand, cmakeBuild)}`);
-        const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(platform.chainCommands(cdCommand, cmakeBuild));
+        const cmakeInit = platform.cmakeInit(directory, info.modPath);
+        const fullCommand = platform.chainCommands(cdCommand, cmakeInit);
+        log.appendLine(`running ${fullCommand}`);
+        const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(fullCommand);
         log.appendLine(cmakeOut);
         log.appendLine(cmakeErr);
         log.appendLine(`success`);
@@ -400,7 +401,7 @@ function activate(context) {
         const fileUri = textEditor.document.uri;
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders === undefined || workspaceFolders.length <= 0) {
-            vscode.window.showErrorMessage("workspace folder not foun");
+            vscode.window.showErrorMessage("workspace folder not found");
             return;
         }
         const workspaceFolder = workspaceFolders[0];
@@ -420,6 +421,7 @@ function activate(context) {
     });
     context.subscriptions.push(openSourceFile);
     const recreateBuildFolder = vscode.commands.registerCommand('sapiens-vscode-extension.recreateBuildFolder', async () => {
+        vscode.window.showInformationMessage(`recreating build folder...`);
         const sapiensConfig = vscode.workspace.getConfiguration("sapiens-vscode-extension");
         const modPath = sapiensConfig.get("modPath");
         const platform = Platform.New();
@@ -432,28 +434,33 @@ function activate(context) {
             vscode.window.showErrorMessage("workspace folder not foun");
             return;
         }
+        console.log(workspaceFolders);
         const workspaceFolder = workspaceFolders[0];
         const projectRoot = workspaceFolder.uri.fsPath;
-        const cmakeInit = platform.cmakeInit(projectRoot, modPath);
+        const cdCommand = platform.changeDir(projectRoot);
+        const cmakeInit = platform.cmakeInit(".", modPath);
+        const fullCommand = platform.chainCommands(cdCommand, cmakeInit);
         try {
-            log.appendLine(`running ${cmakeInit}`);
-            const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(cmakeInit);
+            log.appendLine(`running ${fullCommand}`);
+            const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(fullCommand);
             log.appendLine(cmakeOut);
             log.appendLine(cmakeErr);
             log.appendLine(`success`);
             vscode.window.showInformationMessage(`recreating build folder successful`);
         }
         catch (e) {
+            log.appendLine(e.toString());
             vscode.window.showErrorMessage(e.toString());
         }
     });
     context.subscriptions.push(recreateBuildFolder);
     const buildAndRun = vscode.commands.registerCommand('sapiens-vscode-extension.buildAndRun', async () => {
+        vscode.window.showInformationMessage(`building mod...`);
         const platform = Platform.New();
         const cmakeBuild = platform.cmakeBuild();
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders === undefined || workspaceFolders.length <= 0) {
-            vscode.window.showErrorMessage("workspace folder not foun");
+            vscode.window.showErrorMessage("workspace folder not found");
             return;
         }
         const workspaceFolder = workspaceFolders[0];
@@ -468,6 +475,7 @@ function activate(context) {
             vscode.window.showInformationMessage(`game is launching`);
         }
         catch (e) {
+            log.appendLine(e.toString());
             vscode.window.showErrorMessage(e.toString());
         }
     });

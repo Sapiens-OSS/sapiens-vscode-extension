@@ -452,9 +452,10 @@ async function initializeProject(info: SapiensProjectInfo, platform: Platform) {
 		log.appendLine(`success`)
 
 		const cdCommand = platform.changeDir(directory)
-		const cmakeBuild = platform.cmakeInit(directory, info.modPath)
-		log.appendLine(`running ${platform.chainCommands(cdCommand, cmakeBuild)}`)
-		const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(platform.chainCommands(cdCommand, cmakeBuild))
+		const cmakeInit = platform.cmakeInit(directory, info.modPath)
+		const fullCommand = platform.chainCommands(cdCommand, cmakeInit)
+		log.appendLine(`running ${fullCommand}`)
+		const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(fullCommand)
 		log.appendLine(cmakeOut)
 		log.appendLine(cmakeErr)
 		log.appendLine(`success`)
@@ -522,7 +523,7 @@ export function activate(context: vscode.ExtensionContext) {
 		const workspaceFolders = vscode.workspace.workspaceFolders
 
 		if(workspaceFolders === undefined || workspaceFolders.length <= 0) {
-			vscode.window.showErrorMessage("workspace folder not foun")
+			vscode.window.showErrorMessage("workspace folder not found")
 			return
 		}
 
@@ -553,6 +554,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const recreateBuildFolder = vscode.commands.registerCommand('sapiens-vscode-extension.recreateBuildFolder', async () => {
 
+		vscode.window.showInformationMessage(`recreating build folder...`)
+
 		const sapiensConfig = vscode.workspace.getConfiguration("sapiens-vscode-extension")
 		const modPath = sapiensConfig.get<string>("modPath")
 
@@ -570,20 +573,25 @@ export function activate(context: vscode.ExtensionContext) {
 			return
 		}
 
+		console.log(workspaceFolders)
+
 		const workspaceFolder = workspaceFolders[0]
 		const projectRoot = workspaceFolder.uri.fsPath
 
-		const cmakeInit = platform.cmakeInit(projectRoot, modPath)
+		const cdCommand = platform.changeDir(projectRoot)
+		const cmakeInit = platform.cmakeInit(".", modPath)
+		const fullCommand = platform.chainCommands(cdCommand, cmakeInit)
 
 		try {
-			log.appendLine(`running ${cmakeInit}`)
-			const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(cmakeInit)
+			log.appendLine(`running ${fullCommand}`)
+			const { stdout: cmakeOut, stderr: cmakeErr } = await execPromise(fullCommand)
 			log.appendLine(cmakeOut)
 			log.appendLine(cmakeErr)
 			log.appendLine(`success`)
 
 			vscode.window.showInformationMessage(`recreating build folder successful`)
 		} catch(e) {
+			log.appendLine((e as any).toString())
 			vscode.window.showErrorMessage((e as any).toString())
 		}
 
@@ -593,13 +601,15 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const buildAndRun = vscode.commands.registerCommand('sapiens-vscode-extension.buildAndRun', async () => {
 
+		vscode.window.showInformationMessage(`building mod...`)
+
 		const platform = Platform.New()
 		const cmakeBuild = platform.cmakeBuild()
 
 		const workspaceFolders = vscode.workspace.workspaceFolders
 
 		if(workspaceFolders === undefined || workspaceFolders.length <= 0) {
-			vscode.window.showErrorMessage("workspace folder not foun")
+			vscode.window.showErrorMessage("workspace folder not found")
 			return
 		}
 
@@ -617,6 +627,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			vscode.window.showInformationMessage(`game is launching`)
 		} catch(e) {
+			log.appendLine((e as any).toString())
 			vscode.window.showErrorMessage((e as any).toString())
 		}
 	})
