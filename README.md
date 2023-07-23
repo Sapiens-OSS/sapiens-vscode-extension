@@ -12,7 +12,7 @@ Sapiens Mod development extension for VSCode
         | Platform       	| File Path                                                                                                           	|
         |----------------	|---------------------------------------------------------------------------------------------------------------------	|
         | Windows        	| `%AppData%\majicjungle\sapiens\mods`                                                                                	|
-        | MacOS          	| ?                                                                                                                   	|
+        | MacOS          	| `~/Library/Application Support/majicjungle/sapiens/mods`                                                            	|
         | Linux (Proton) 	| `~/.steam/steam/steamapps/compatdata/1060230/pfx/drive_c/users/steamuser/AppData/Roaming/majicjungle/sapiens/mods/` 	|
 
         Note that the extension will attempt to automatically look for an installation folder, but this is a long process with a tendency to crash, and only works on Linux for now. So don't bother waiting for it
