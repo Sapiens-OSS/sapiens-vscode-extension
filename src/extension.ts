@@ -20,7 +20,6 @@ type SapiensProjectInfo = {
 	MOD_TYPE: "world" | "app"
 };
 
-
 abstract class Platform {
 	
 	abstract directorySeparator: string;
@@ -41,6 +40,7 @@ abstract class Platform {
 		switch(process.platform) {
 			case "win32": return new WindowsPlatform();
 			case "linux": return new LinuxPlatform();
+      case "darwin": return new MacPlatform();
 			default: {throw new Error(`Unsupported platform: ${process.platform}`);}
 		}
 	}
@@ -75,6 +75,59 @@ class LinuxPlatform extends Platform {
 
 	openVsCode(path: string): string {
 		return `code ${path}`;
+	}
+
+	chainCommands(...commands: string[]): string {
+		return commands.join(` && `);
+	}
+
+	getRoots(): string[] {
+		return [`/`];
+	}
+
+	toPathArray(path: string): string[] {
+		if(path.startsWith("/")) {
+			if(path === "/") {
+				return ["/"];
+			} else {
+				return ["/", ...path.slice(1).split("/")];
+			}
+		} else {
+			return path.split("/");
+		}
+	}
+}
+
+class MacPlatform extends Platform {
+	directorySeparator: string = "/";
+
+  cloneRepo(path: string, repoUrl: string): string {
+    // Adds "${path}" in quotes to escape the space in "Application Support"
+    // If this causes issues it could also be escaped by adding a backslash before the space
+		return `git clone --recurse-submodules ${repoUrl} "${path}"`;
+	}
+
+	removeDir(path: string): string {
+		return `rm -rf "${path}"`;
+	}
+
+	changeDir(path: string): string {
+		return `cd "${path}"`;
+	}
+
+	cmakeInit(path: string, modPath: string): string {
+		const strippedPath = path.endsWith(this.directorySeparator) ? path.slice(0, path.length-1) : path;
+		const strippedModPath = modPath.endsWith(this.directorySeparator) ? modPath.slice(0, modPath.length-1) : modPath;
+
+		return `cmake -DAUTO_COPY_MOD=ON -DSAPIENS_MOD_DIRECTORY="${strippedModPath}" "${strippedPath}" -B build`;
+	}
+
+	cmakeBuild(): string {
+		return `cmake --build build/ --target sync_mod_files --target run_game`;
+	}
+
+	openVsCode(path: string): string {
+		return `code "${path}`;
 	}
 
 	chainCommands(...commands: string[]): string {
@@ -200,7 +253,6 @@ function fileExplorer(platform: Platform, initial: Array<string>, title: string,
 	};
 
 	let contentOnPath = readContents();
-
 	const pathItems = () => {
 		const autoDetectContent = autoDetectLocations !== undefined && autoDetectedLocations.length === 0
 				? [{ label: 'Auto-detecing locations. Please wait... (can take up to 5 minutes)', description: `In the meantime, you can manually search for the location` }]
@@ -251,7 +303,7 @@ function fileExplorer(platform: Platform, initial: Array<string>, title: string,
 				path.items = pathItems();
 			}
 		} else {
-			console.log(path.value);
+			console.log(`path.value`, path.value);
 			if(path.value.startsWith("/")) {
 				currentPath = path.value === "/" ? ['/'] : path.value.split(platform.directorySeparator);
 			} else {
@@ -292,9 +344,13 @@ function enterModPath(info: Partial<SapiensProjectInfo>, platform: Platform) {
 			platform,
 			[],
 			`Enter the path to the mods folder in your Sapiens installation location (to make this permanent, look for 'modPath' in settings)`,
-			(currentPath) => enterName({...info, modPath: currentPath}, platform),
+			(currentPath) => {
+        console.log('currentPath', currentPath);
+        return enterName({...info, modPath: currentPath}, platform);
+      },
 			async () => {
 				const found = (await util.promisify(exec)(`find / -type d -name 'majicjungle' -print 2>/dev/null`));
+        console.log(found);
 				return (found.stdout as string).split('\n').filter(f => f !== '');
 			}
 		);
@@ -398,7 +454,7 @@ function enterConfirmation(info: SapiensProjectInfo, platform: Platform) {
 	input.title = `Please confirm the following information:\n
 Setup of the project will be installed at ${info.path}${info.id} (will write to this location).\n
 Your Sapiens installation's mods folder is located at ${info.modPath} (will write to this location).\n
-Mod name, description, etc. will be writted to modInfo.lua, where you can change their values any time you want.\n
+Mod name, description, etc. will be written to modInfo.lua, where you can change their values any time you want.\n
 Is this OK?`;
 
 	input.items = [{label: "Yes"}, {label: "No"}];
