@@ -3,7 +3,7 @@
   "displayName": "Sapiens Modding VSCode Extension",
   "description": "Sapiens Mod development for VSCode",
   "publisher": "Sapiens-OSS",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "repository": {
     "url": "https://github.com/Sapiens-OSS/sapiens-vscode-extension"
   },
