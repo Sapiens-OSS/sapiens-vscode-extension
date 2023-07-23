@@ -19,6 +19,7 @@ type SapiensProjectInfo = {
 	MOD_WEBSITE: string,
 	MOD_TYPE: "world" | "app"
 };
+
 abstract class Platform {
 	
 	abstract directorySeparator: string;
@@ -226,7 +227,6 @@ function fileExplorer(platform: Platform, initial: Array<string>, title: string,
 			return "";
 		}
 	};
-  
 
 	let autoDetectedLocations: Array<string> = [];
 	autoDetectLocations
