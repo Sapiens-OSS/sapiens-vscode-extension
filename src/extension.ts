@@ -18,23 +18,23 @@ type SapiensProjectInfo = {
 	MOD_DEVELOPER: string,
 	MOD_WEBSITE: string,
 	MOD_TYPE: "world" | "app"
-};
+}
 
 abstract class Platform {
 	
-	abstract directorySeparator: string;
+	abstract directorySeparator: string
 
-	abstract cloneRepo(path: string, repoUrl: string): string;
-	abstract removeDir(path: string): string;
-	abstract changeDir(path: string): string;
-	abstract cmakeInit(path: string, modPath: string): string;
-	abstract cmakeBuild(): string;
-	abstract openVsCode(path: string): string;
-	abstract chainCommands(...commands: Array<string>): string;
+	abstract cloneRepo(path: string, repoUrl: string): string
+	abstract removeDir(path: string): string
+	abstract changeDir(path: string): string
+	abstract cmakeInit(path: string, modPath: string): string
+	abstract cmakeBuild(): string
+	abstract openVsCode(path: string): string
+	abstract chainCommands(...commands: Array<string>): string
 
-	abstract getRoots(): Array<string>;
+	abstract getRoots(): Array<string>
 
-	abstract toPathArray(path: string): Array<string>;
+	abstract toPathArray(path: string): Array<string>
 
 	public static New() {
 		switch(process.platform) {
